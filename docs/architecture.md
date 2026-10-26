@@ -35,11 +35,19 @@ Switching is changing that one value (or `VITE_DATA_SOURCE=ipfs`). All code buil
 ## Export script
 `npm run export:parquet -- --db /path/to/nassau.duckdb` (or `DUCKDB_PATH`) runs `scripts/export-parquet.mjs`, which opens the DB read-only with the `@duckdb/node-api` package (prebuilt binaries, no compile step) and runs `COPY (SELECT * FROM <table>) TO 'public/data/<table>.parquet' (FORMAT PARQUET, COMPRESSION ZSTD)` for each table in the contract. Output uses the same Parquet path the app will use via IPFS.
 
-## Assumed table/column contract (TODO: confirm against the real schema)
-All names below are ASSUMPTIONS.
-- `parcels`: parcel_id, address, city, zip, lat, lon, property_type (residential/commercial), year_built  -- TODO: confirm lat/lon exist on parcels vs. separate geometry table.
-- `permits`: permit_id, parcel_id, permit_type, status, opened_date, closed_date, contractor_id  -- TODO: how "roofing" permits are identified (type vs description); status vocabulary for "open".
-- `ownership`: parcel_id, owner_name, mailing_address  -- TODO: confirm privacy/usage constraints.
-- `roof_age`: parcel_id, roof_age_years, roof_install_year, confidence, source  -- TODO: confirm estimate method and whether it is a table or a column.
-- `contractors`: contractor_id, name, license_no, bbb_rating, bbb_score  -- TODO: confirm BBB data lives here.
-Radius search: haversine on lat/lon in SQL (DuckDB `spatial` extension optional).
+## Table contract (confirmed against the pipeline's `docs/schema.md`)
+`scripts/export-parquet.mjs` builds two Parquet tables from `nassau.duckdb` (opened read-only):
+- `properties` (about 422k rows): one row per property with coordinates. `lat`/`lon` come from `properties.lat/lon` (state centroid points), falling back to `polygon_lat/polygon_lon` (labelled `coord_method = parcel_polygon_centroid`); about 4k parcels with neither are dropped. Roof age comes from `property_roof_age` (`roof_age_years`, `roof_year`, `roof_age_basis`, `roof_age_confidence`, `roof_age_caveat`): the latest roofing permit when one exists, else the NSI census-block estimate. Also owner, out-of-area flag (`owner_location_class`), `ownership_signal`.
+- `permits` (Oyster Bay eTRAKiT, grows as the harvest runs): `etrakit_permit_facts` joined to its unique property link and to contacts. Roofing = `is_roofing` (medium/high confidence only) with `roofing_confidence` (none/low/medium/high). Open = `is_open` / `status_class` (open, closed, void, unknown); `status_known = false` marks an unrecognized status. `years_open`, `past_expiration`, `contractor_name`, `trade_contacts`.
+
+Radius search is plain haversine SQL on `lat`/`lon` with a bounding-box prefilter (no spatial extension).
+
+## Known data gaps (documented, not bugs)
+- **BBB:** no BBB data exists yet. `bbb_score` is a nullable column on both tables (always NULL today) and the UI shows "not available".
+- **Roof age is a weak estimate:** every value is `low` confidence (NSI census-block median year built). No roofing permit has reached medium/high confidence yet, so the default "open roofing permits" view is empty and the UI offers a one-click "include low-confidence candidates".
+- **Permits cover the Hicksville demo area only** (Town of Oyster Bay unincorporated blocks within 1 mile, harvest in progress); the rest of Nassau has parcels and roof estimates but no permits.
+- **Ownership signal** rests on five yearly rolls (2021-2025) and cannot prove a long hold.
+- **Contractors:** no separate contractor table; `contractor_name` is the permit's CONTRACTOR contact and can be a placeholder (for example "PLUMBING WORK ONLY").
+
+## UI (phase 1)
+`src/App.tsx` (state: pin, radius, roof-age threshold, permit filter) -> `src/lib/queries.ts` (DuckDB-WASM SQL) -> `MapView` (MapLibre, OSM tiles, click or drag to set the pin, GPS button), `LeadList` (aging roofs / open permits tabs), `DetailPanel` (roof age with basis and confidence, owner, permits, contractor, BBB placeholder), `LeadsView` (saved leads in `localStorage`, filters by roof age, permit status/open duration, radius). Outreach, Sales Pipeline and Reports are disabled placeholders; the agent tab is a placeholder until the Worker is built.

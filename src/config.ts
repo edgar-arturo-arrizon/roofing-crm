@@ -1,6 +1,8 @@
 // Single place to choose where data comes from. Swap local -> IPFS by changing `dataSource`
 // (or setting VITE_DATA_SOURCE=ipfs at build time).
 
+import published from "../shared/data-cids.json"; // same CIDs the MCP server reads
+
 export type TableName = "properties" | "permits";
 
 export type DataSource =
@@ -9,12 +11,7 @@ export type DataSource =
 
 const local: DataSource = { kind: "local", basePath: "/data" };
 
-const ipfs: DataSource = {
-  kind: "ipfs",
-  gateway: "https://ipfs.io",
-  // TODO: fill in once the pipeline publishes Parquet to IPFS.
-  cids: { properties: "", permits: "" },
-};
+const ipfs: DataSource = { kind: "ipfs", gateway: published.gateway, cids: published.cids };
 
 export const dataSource: DataSource = import.meta.env.VITE_DATA_SOURCE === "ipfs" ? ipfs : local;
 

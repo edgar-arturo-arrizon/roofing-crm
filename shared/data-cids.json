@@ -1,0 +1,9 @@
+{
+  "run_id": "ipfs-20261026T032236Z",
+  "source": "oracle-property-intelligence-platform-pipeline-nassau-ny/docs/ipfs/manifest-ipfs-20261026T032236Z.json",
+  "gateway": "https://ipfs.filebase.io",
+  "cids": {
+    "properties": "bafybeibm4mimuy4miseibpylvi6rgrkaedlsyb7vr7sbjgtj5jqukqzpta",
+    "permits": "bafkreibsz4fuppdn5fdxabyogghtcgubix4rz3qgev675wdemxwquzzg6u"
+  }
+}

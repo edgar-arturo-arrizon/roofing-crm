@@ -51,3 +51,10 @@ Radius search is plain haversine SQL on `lat`/`lon` with a bounding-box prefilte
 
 ## UI (phase 1)
 `src/App.tsx` (state: pin, radius, roof-age threshold, permit filter) -> `src/lib/queries.ts` (DuckDB-WASM SQL) -> `MapView` (MapLibre, OSM tiles, click or drag to set the pin, GPS button), `LeadList` (aging roofs / open permits tabs), `DetailPanel` (roof age with basis and confidence, owner, permits, contractor, BBB placeholder), `LeadsView` (saved leads in `localStorage`, filters by roof age, permit status/open duration, radius). Outreach, Sales Pipeline and Reports are disabled placeholders; the agent tab is a placeholder until the Worker is built.
+
+## Natural-language agent and MCP access
+
+- **In-app agent:** the browser runs the tool loop. `POST /api/agent` on a Cloudflare Worker relays each turn to Claude (`claude-haiku-5-5`); the Worker owns the model, system prompt and tool schemas and never sees property data. When Claude asks for a tool, the browser runs the matching function in `src/lib/queries.ts` against DuckDB-WASM, sends back a compact result (total count + top 15 rows), and the final rows are pushed to the map. The LLM never writes SQL.
+- **MCP server (`mcp/`):** the same five tools over stdio, backed by server-side DuckDB reading the Parquet from an IPFS gateway. It runs on the user's machine, so it adds no Oracle-hosted infrastructure.
+- **One contract:** tool names and params live in `shared/tools.json`; published CIDs live in `shared/data-cids.json`. Both the web app, the Worker and the MCP server read them.
+- **Cost note:** the only metered resource is the LLM API key held in the Worker. Production should add rate limiting on the Worker (e.g. Cloudflare rate-limiting rules) before the URL is public.

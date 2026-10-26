@@ -28,8 +28,12 @@ Rules:
 function cors(req: Request, env: Env): Record<string, string> | null {
   const origin = req.headers.get("Origin");
   const allowed = (env.ALLOWED_ORIGINS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-  if (!origin) return {};
-  if (!allowed.includes(origin)) return null;
+  // A request with no Origin header is not a browser call subject to CORS -- it's a direct client (curl, a
+  // script) that can set any header it likes. Letting it through for free would spend the API key on every
+  // caller that simply omits Origin. This isn't full auth (an attacker can still fake an allowed Origin from
+  // a non-browser client), just the cheapest guard against the most obvious bypass; a real fix needs
+  // server-side auth, per-client rate limiting and a spend cap -- see README "Known limitations".
+  if (!origin || !allowed.includes(origin)) return null;
   return { "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Methods": "POST, OPTIONS", "Access-Control-Allow-Headers": "Content-Type", Vary: "Origin" };
 }
 

@@ -58,10 +58,10 @@ async function runTool(name: string, input: any, results: AgentResults): Promise
       const pin = pinOf(input.pin), radius = radiusOf(input.radiusMiles);
       const filter = input.filter as PermitFilter;
       if (!["roofing", "roofing_low", "all_open"].includes(filter)) throw new Error("filter must be roofing, roofing_low or all_open");
-      const rows = await openPermits(pin, radius, filter);
-      results.permits = { rows, pin, radius, filter };
-      const shown = rows.slice(0, SHOWN_ROWS).map(compactPermit);
-      return { content: JSON.stringify({ total: rows.length, shown: shown.length, rows: shown }), summary: `${rows.length} open permits` };
+      const r = await openPermits(pin, radius, filter);
+      results.permits = { rows: r.rows, pin, radius, filter };
+      const shown = r.rows.slice(0, SHOWN_ROWS).map(compactPermit);
+      return { content: JSON.stringify({ total: r.total, shown: shown.length, rows: shown }), summary: `${r.total} open permits` };
     }
     case "permitCounts": {
       const counts = await permitCounts(pinOf(input.pin), radiusOf(input.radiusMiles));

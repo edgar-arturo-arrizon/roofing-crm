@@ -58,7 +58,7 @@ export default function App() {
     setLoading(true);
     const t = setTimeout(() => {
       Promise.all([agingRoofs(pin, radius, roofAge), openPermits(pin, radius, permitFilter), permitCounts(pin, radius)])
-        .then(([r, p, c]) => { if (!live) return; setRoofs(r.rows); setRoofsTotal(r.total); setPermits(p); setCounts(c); setError(null); })
+        .then(([r, p, c]) => { if (!live) return; setRoofs(r.rows); setRoofsTotal(r.total); setPermits(p.rows); setCounts(c); setError(null); })
         .catch((e) => live && setError(String(e?.message ?? e)))
         .finally(() => live && setLoading(false));
     }, 250);

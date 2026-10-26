@@ -5,22 +5,28 @@ let connPromise: Promise<duckdb.AsyncDuckDBConnection> | null = null;
 
 /** One DuckDB-WASM instance; each Parquet file is registered as a view that reads over HTTP range requests. */
 export function getConn(): Promise<duckdb.AsyncDuckDBConnection> {
-  connPromise ??= (async () => {
-    // Engine files (the eh wasm is ~34 MiB, over Cloudflare Pages' 25 MiB per-file limit) load from jsDelivr, not our dist/.
-    const bundle = await duckdb.selectBundle(duckdb.getJsDelivrBundles());
-    // Browsers refuse cross-origin Workers, so wrap the CDN worker script in a same-origin blob.
-    const workerUrl = URL.createObjectURL(new Blob([`importScripts("${bundle.mainWorker!}");`], { type: "text/javascript" }));
-    const worker = new Worker(workerUrl);
-    const db = new duckdb.AsyncDuckDB(new duckdb.ConsoleLogger(duckdb.LogLevel.WARNING), worker);
-    await db.instantiate(bundle.mainModule);
-    const conn = await db.connect();
-    for (const t of ["properties", "permits"] as TableName[]) {
-      const url = new URL(tableUrl(t), window.location.href).href;
-      await db.registerFileURL(`${t}.parquet`, url, duckdb.DuckDBDataProtocol.HTTP, false);
-      await conn.query(`CREATE VIEW ${t} AS SELECT * FROM read_parquet('${t}.parquet')`);
-    }
-    return conn;
-  })();
+  if (!connPromise) {
+    const p: Promise<duckdb.AsyncDuckDBConnection> = (async () => {
+      // Engine files (the eh wasm is ~34 MiB, over Cloudflare Pages' 25 MiB per-file limit) load from jsDelivr, not our dist/.
+      const bundle = await duckdb.selectBundle(duckdb.getJsDelivrBundles());
+      // Browsers refuse cross-origin Workers, so wrap the CDN worker script in a same-origin blob.
+      const workerUrl = URL.createObjectURL(new Blob([`importScripts("${bundle.mainWorker!}");`], { type: "text/javascript" }));
+      const worker = new Worker(workerUrl);
+      const db = new duckdb.AsyncDuckDB(new duckdb.ConsoleLogger(duckdb.LogLevel.WARNING), worker);
+      await db.instantiate(bundle.mainModule);
+      const conn = await db.connect();
+      for (const t of ["properties", "permits"] as TableName[]) {
+        const url = new URL(tableUrl(t), window.location.href).href;
+        await db.registerFileURL(`${t}.parquet`, url, duckdb.DuckDBDataProtocol.HTTP, false);
+        await conn.query(`CREATE VIEW ${t} AS SELECT * FROM read_parquet('${t}.parquet')`);
+      }
+      return conn;
+    })();
+    // A failed first connect (bad network blip, cold CDN/gateway) must not poison every future query:
+    // clear the cache so the next getConn() call retries instead of re-awaiting the same rejection forever.
+    p.catch(() => { if (connPromise === p) connPromise = null; });
+    connPromise = p;
+  }
   return connPromise;
 }
 

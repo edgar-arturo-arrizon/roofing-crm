@@ -4,7 +4,13 @@ import type { Lead, PermitLead, Property } from "./types";
 const KEY = "roofing-crm.leads.v1"; // localStorage is a deliberate MVP choice (see docs/architecture.md)
 
 function load(): Lead[] {
-  try { return JSON.parse(localStorage.getItem(KEY) ?? "[]") as Lead[]; } catch { return []; }
+  try {
+    const parsed = JSON.parse(localStorage.getItem(KEY) ?? "[]");
+    // A corrupted value or a stale schema from an earlier version must not be trusted as Lead[] on faith --
+    // fall back to empty rather than letting malformed entries reach code that assumes the shape below.
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((l): l is Lead => l != null && typeof l === "object" && typeof l.id === "string" && typeof l.property_key === "string");
+  } catch { return []; }
 }
 
 export function useLeads() {

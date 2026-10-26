@@ -9,7 +9,15 @@ import { handlers, openDb, tools } from "./queries.mjs";
 const server = new Server({ name: "roofing-crm", version: "0.1.0" }, { capabilities: { tools: {} } });
 
 let connPromise; // opened lazily so `tools/list` answers instantly
-const db = () => (connPromise ??= openDb());
+function db() {
+  if (!connPromise) {
+    const p = openDb();
+    // Same reasoning as the browser's getConn(): don't let one failed connect poison every later call.
+    p.catch(() => { if (connPromise === p) connPromise = undefined; });
+    connPromise = p;
+  }
+  return connPromise;
+}
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: tools.map((t) => ({ name: t.name, description: t.description, inputSchema: t.input_schema })),

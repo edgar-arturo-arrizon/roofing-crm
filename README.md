@@ -49,6 +49,18 @@ The UI should present property and permit details, including contractor informat
 - Live BBB API integration beyond displaying scores already present in available data.
 - Actual outbound messaging to property owners (can be mocked or deferred).
 
+## Known limitations
+- **Worker auth is partial.** `worker/src/index.ts` rejects requests with no `Origin` header or one outside
+  `ALLOWED_ORIGINS`, which blocks the simplest bypass (a bare script/curl call), but a non-browser client can
+  still spoof an allowed `Origin` header and reach the API-key-backed endpoint. A real fix needs server-side
+  authentication, per-client rate limiting, and a spend cap on the Anthropic key -- not yet built.
+- **Long agent conversations can hit the 40-message Worker cap** with no trimming or recovery path; a user
+  mid-conversation who hits it has to start a new chat.
+- **Switching from the agent tab to the map tab loses the chat history** (state lives inside `AgentView` and
+  unmounts on navigation); it would need to move up to a parent component to persist across tabs.
+- **`mcp/test/smoke.mjs` hardcodes exact row/permit counts** tied to one past pipeline run; it will need
+  updating (or a tolerance check) whenever the published dataset changes.
+
 ## Reference
 - [Soofi XYZ Team Kit](https://github.com/soofi-xyz/soofi-xyz-team-kit)
 - [Elephant Oracle Skills](https://github.com/elephant-xyz/skills)

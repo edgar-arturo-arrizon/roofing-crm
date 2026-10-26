@@ -29,12 +29,15 @@ export default function AgentView({ map, onResults, onShowMap }: Props) {
     if (!question || busy) return;
     setInput(""); setBusy(true); setLive([]);
     setMsgs((m) => [...m, { role: "user", text: question }]);
+    // A failed turn may have already pushed several messages (tool round-trips before the failing step).
+    // Truncate back to this length on error, not just pop(), or the leftover entries corrupt the next turn.
+    const startLen = history.current.length;
     try {
       const turn = await ask(history.current, question, map, (t) => setLive((l) => [...l, t]));
       if (turn.results.roofs || turn.results.permits) onResults(turn.results);
       setMsgs((m) => [...m, { role: "agent", text: turn.text, trace: turn.trace, results: turn.results }]);
     } catch (e) {
-      history.current.pop(); // drop the unanswered question so a retry starts clean
+      history.current.length = startLen; // drop everything this turn added so a retry starts clean
       setMsgs((m) => [...m, { role: "error", text: String((e as Error)?.message ?? e) }]);
     } finally { setBusy(false); setLive([]); }
   }
@@ -59,7 +62,7 @@ export default function AgentView({ map, onResults, onShowMap }: Props) {
               <ul className="trace">{m.trace.map((t, j) => <li key={j}><code>{t.name}</code> → {t.summary}</li>)}</ul>
             )}
             {m.results && (m.results.roofs || m.results.permits) && (
-              <button className="link" onClick={onShowMap}>Show these results on the map →</button>
+              <button className="link" onClick={() => { onResults(m.results!); onShowMap(); }}>Show these results on the map →</button>
             )}
           </div>
         ))}

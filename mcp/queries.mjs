@@ -86,15 +86,19 @@ export const handlers = {
   async openPermits(conn, a) {
     const pin = pinOf(a.pin), miles = radiusOf(a.radiusMiles);
     if (!["roofing", "roofing_low", "all_open"].includes(a.filter)) throw new Error("filter must be roofing, roofing_low or all_open");
-    const all = await rows(conn, `SELECT * FROM (
-        SELECT p.*, pr.situs_address, pr.lat, pr.lon, pr.roof_age_years, ${haversineSql(pin, "pr.lat", "pr.lon")} AS miles
+    const inner = `SELECT p.*, pr.situs_address, pr.lat, pr.lon, pr.roof_age_years, ${haversineSql(pin, "pr.lat", "pr.lon")} AS miles
         FROM permits p JOIN properties pr USING (property_key)
-        WHERE ${bboxSql(pin, miles, "pr.lat", "pr.lon")} AND ${permitWhere(a.filter)})
-      WHERE miles <= ${miles} ORDER BY years_open DESC NULLS LAST, miles LIMIT ${MAX_ROWS}`);
+        WHERE ${bboxSql(pin, miles, "pr.lat", "pr.lon")} AND ${permitWhere(a.filter)}`;
+    // LIMIT above only bounds what we fetch for display; the real total needs its own count query
+    // (all.length would silently cap at MAX_ROWS once an area has more open permits than that).
+    const [all, count] = await Promise.all([
+      rows(conn, `SELECT * FROM (${inner}) WHERE miles <= ${miles} ORDER BY years_open DESC NULLS LAST, miles LIMIT ${MAX_ROWS}`),
+      rows(conn, `SELECT count(*) AS n FROM (${inner}) WHERE miles <= ${miles}`),
+    ]);
     const shown = all.slice(0, SHOWN_ROWS).map((p) => ({ permit_no: p.permit_no, property_key: p.property_key, address: p.situs_address, status: p.status,
       years_open: r2(p.years_open), open_since: p.open_since, roofing_confidence: p.roofing_confidence, contractor: p.contractor_name, bbb_score: p.bbb_score,
       roof_age_years: p.roof_age_years, description: p.job_description?.slice(0, 100) ?? null, miles: r2(p.miles) }));
-    return { total: all.length, shown: shown.length, rows: shown };
+    return { total: count[0].n, shown: shown.length, rows: shown };
   },
   async permitCounts(conn, a) {
     const pin = pinOf(a.pin), miles = radiusOf(a.radiusMiles);

@@ -33,15 +33,18 @@ function permitWhere(f: PermitFilter): string {
 }
 
 /** Open permits inside the radius, longest-open first (null years_open last). */
-export async function openPermits(pin: Pin, miles: number, filter: PermitFilter): Promise<PermitLead[]> {
-  const sql = `SELECT * FROM (
-      SELECT p.*, pr.situs_address, pr.lat, pr.lon, pr.roof_age_years, pr.roof_age_confidence, pr.roof_age_basis,
+export async function openPermits(pin: Pin, miles: number, filter: PermitFilter): Promise<{ rows: PermitLead[]; total: number }> {
+  const inner = `SELECT p.*, pr.situs_address, pr.lat, pr.lon, pr.roof_age_years, pr.roof_age_confidence, pr.roof_age_basis,
              ${haversineSql(pin, "pr.lat", "pr.lon")} AS miles
       FROM permits p JOIN properties pr USING (property_key)
-      WHERE ${bboxSql(pin, miles, "pr.lat", "pr.lon")} AND ${permitWhere(filter)})
-    WHERE miles <= ${Number(miles)}
-    ORDER BY years_open DESC NULLS LAST, miles LIMIT ${MAX_ROWS}`;
-  return query<PermitLead>(sql);
+      WHERE ${bboxSql(pin, miles, "pr.lat", "pr.lon")} AND ${permitWhere(filter)}`;
+  // The LIMIT below only bounds how many rows we fetch for display; the real total needs its own count
+  // query -- rows.length would silently cap at MAX_ROWS once an area has more open permits than that.
+  const [rows, count] = await Promise.all([
+    query<PermitLead>(`SELECT * FROM (${inner}) WHERE miles <= ${Number(miles)} ORDER BY years_open DESC NULLS LAST, miles LIMIT ${MAX_ROWS}`),
+    query<{ n: number }>(`SELECT count(*) AS n FROM (${inner}) WHERE miles <= ${Number(miles)}`),
+  ]);
+  return { rows, total: count[0]?.n ?? 0 };
 }
 
 /** How many open permits in the radius sit at each roofing-confidence level (for the empty-state hint). */

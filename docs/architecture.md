@@ -5,14 +5,14 @@
 - MapLibre GL JS with OSM raster tiles (no API key).
 - DuckDB-WASM in the browser queries Parquet directly (HTTP range reads).
 - Leads in `localStorage` (deliberate MVP choice; later move to a small persistent store, e.g. Cloudflare D1/KV behind the Worker).
-- Hosting: Cloudflare Pages free tier. One small Cloudflare Worker (`worker/`, stub only) will proxy the future LLM agent call so the API key never ships to the browser.
+- Hosting: Cloudflare Pages free tier. A small Cloudflare Worker (`worker/`) proxies the LLM agent call so the API key never ships to the browser.
 
 ## Data flow
 ```
 Nassau County DuckDB (sibling pipeline repo)
    | scripts/export-parquet (dev-time, local only)
    v
-public/data/*.parquet  --(later)-->  published to IPFS (CIDs)
+public/data/*.parquet  -------------->  published to IPFS (CIDs)
    |                                    |
    +------------- config.dataSource ----+
    v
@@ -50,11 +50,11 @@ Radius search is plain haversine SQL on `lat`/`lon` with a bounding-box prefilte
 - **Contractors:** no separate contractor table; `contractor_name` is the permit's CONTRACTOR contact and can be a placeholder (for example "PLUMBING WORK ONLY").
 
 ## UI (phase 1)
-`src/App.tsx` (state: pin, radius, roof-age threshold, permit filter) -> `src/lib/queries.ts` (DuckDB-WASM SQL) -> `MapView` (MapLibre, OSM tiles, click or drag to set the pin, GPS button), `LeadList` (aging roofs / open permits tabs), `DetailPanel` (roof age with basis and confidence, owner, permits, contractor, BBB placeholder), `LeadsView` (saved leads in `localStorage`, filters by roof age, permit status/open duration, radius). Outreach, Sales Pipeline and Reports are disabled placeholders; the agent tab is a placeholder until the Worker is built.
+`src/App.tsx` (state: pin, radius, roof-age threshold, permit filter) -> `src/lib/queries.ts` (DuckDB-WASM SQL) -> `MapView` (MapLibre, OSM tiles, click or drag to set the pin, GPS button), `LeadList` (aging roofs / open permits tabs), `DetailPanel` (roof age with basis and confidence, owner, permits, contractor, BBB placeholder), `LeadsView` (saved leads in `localStorage`, filters by roof age, permit status/open duration, radius). Outreach, Sales Pipeline and Reports are disabled placeholders.
 
 ## Natural-language agent and MCP access
 
 - **In-app agent:** the browser runs the tool loop. `POST /api/agent` on a Cloudflare Worker relays each turn to Claude (`claude-haiku-5-5`); the Worker owns the model, system prompt and tool schemas and never sees property data. When Claude asks for a tool, the browser runs the matching function in `src/lib/queries.ts` against DuckDB-WASM, sends back a compact result (total count + top 15 rows), and the final rows are pushed to the map. The LLM never writes SQL.
 - **MCP server (`mcp/`):** the same five tools over stdio, backed by server-side DuckDB reading the Parquet from an IPFS gateway. It runs on the user's machine, so it adds no Oracle-hosted infrastructure.
 - **One contract:** tool names and params live in `shared/tools.json`; published CIDs live in `shared/data-cids.json`. Both the web app, the Worker and the MCP server read them.
-- **Cost note:** the only metered resource is the LLM API key held in the Worker. Production should add rate limiting on the Worker (e.g. Cloudflare rate-limiting rules) before the URL is public.
+- **Cost note:** the only metered resource is the LLM API key held in the Worker. The deployed Worker rejects requests with no `Origin` header or an origin outside `ALLOWED_ORIGINS`, but that alone is not sufficient defense once the URL is public -- a non-browser client can still spoof an allowed Origin. Real protection (server-side auth, per-client rate limiting, and a spend cap on the Anthropic key) is a known gap, not yet built.

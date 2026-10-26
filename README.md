@@ -1,5 +1,13 @@
 # Roofing CRM & Lead Identification UI
 
+## Live deployment
+
+- **App:** https://roofing-crm-4wv.pages.dev
+- **Agent backend (Cloudflare Worker):** https://roofing-crm-agent.edgararrizon.workers.dev (called by the app; not meant to be opened directly)
+- **MCP server:** stdio, run locally with `cd mcp && npm install && node server.mjs` (see `mcp/README.md`) — reads the same published Parquet directly from IPFS, no separate hosting needed.
+- **Data source:** the app and MCP server both read from IPFS CIDs published by the sibling pipeline repo (`shared/data-cids.json`), not from any server this repo runs.
+- **Local dev:** `npm install && npm run dev` (map/leads UI against local Parquet) — see `docs/architecture.md` for the full stack and `worker/README.md` / `mcp/README.md` for running the agent and MCP server locally.
+
 ## Context
 
 Roofing companies need a practical CRM for finding and qualifying residential and commercial roofing leads in their service area. The immediate requirement is a map-based CRM that helps sales teams explore local properties, surface roofs that are aging or have stalled open permits, and turn those signals into actionable outreach opportunities.

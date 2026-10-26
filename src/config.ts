@@ -29,3 +29,6 @@ export function tableUrl(table: TableName): string {
   if (dataSource.kind === "local") return `${dataSource.basePath}/${table}.parquet`;
   return `${dataSource.gateway}/ipfs/${dataSource.cids[table]}`;
 }
+
+/** Cloudflare Worker relay for the agent. In dev, Vite proxies /api to `wrangler dev` (see vite.config.ts). */
+export const agentUrl: string = import.meta.env.VITE_AGENT_URL ?? "/api/agent";

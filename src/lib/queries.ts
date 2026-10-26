@@ -9,10 +9,16 @@ const PROP_COLS = `property_key, print_key_code, sbl_key, situs_address, town_or
   last_deed_change_roll_year, full_market_value, roof_age_basis, roof_year, roof_age_years, roof_age_confidence,
   roof_age_caveat, evidence_permit_no, bbb_score`;
 
-/** Properties inside the radius whose roof age is at least `minAge` years (oldest first). */
-export async function agingRoofs(pin: Pin, miles: number, minAge: number): Promise<{ rows: Property[]; total: number }> {
+/**
+ * Properties inside the radius whose roof age is at least `minAge` years (oldest first).
+ * `withoutOpenPermit` drops properties that have any open permit (used by the agent's "aged roof, no open permit" questions).
+ */
+export async function agingRoofs(pin: Pin, miles: number, minAge: number, withoutOpenPermit = false): Promise<{ rows: Property[]; total: number }> {
+  const noPermit = withoutOpenPermit
+    ? "AND NOT EXISTS (SELECT 1 FROM permits op WHERE op.property_key = properties.property_key AND op.is_open)"
+    : "";
   const inner = `SELECT ${PROP_COLS}, ${haversineSql(pin)} AS miles FROM properties
-                 WHERE ${bboxSql(pin, miles)} AND roof_age_years >= ${Number(minAge)}`;
+                 WHERE ${bboxSql(pin, miles)} AND roof_age_years >= ${Number(minAge)} ${noPermit}`;
   const [rows, count] = await Promise.all([
     query<Property>(`SELECT * FROM (${inner}) WHERE miles <= ${Number(miles)} ORDER BY roof_age_years DESC, miles LIMIT ${MAX_ROWS}`),
     query<{ n: number }>(`SELECT count(*) AS n FROM (${inner}) WHERE miles <= ${Number(miles)}`),

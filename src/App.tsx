@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { appConfig } from "./config";
+import AgentView from "./components/AgentView";
 import Controls from "./components/Controls";
 import DetailPanel from "./components/DetailPanel";
 import LeadList from "./components/LeadList";
 import LeadsView from "./components/LeadsView";
 import MapView from "./components/MapView";
+import type { AgentResults } from "./lib/agent";
 import { useLeads } from "./lib/leads";
 import { agingRoofs, MAX_ROWS, openPermits, permitCounts } from "./lib/queries";
 import type { PermitFilter, PermitLead, Pin, Property } from "./lib/types";
@@ -34,10 +36,24 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
+  const [agentView, setAgentView] = useState(false); // true while the map shows the agent's rows instead of the live radius query
   const { leads, add, update, remove, has } = useLeads();
+
+  // Agent answers replace the map's rows; any manual control change hands the map back to the live query.
+  const manual = <T,>(set: (v: T) => void) => (v: T) => { setAgentView(false); set(v); };
+  function showAgentResults(r: AgentResults) {
+    const src = r.roofs ?? r.permits!;
+    setAgentView(true);
+    setPin(src.pin); setRadius(src.radius);
+    if (r.roofs) { setRoofAge(r.roofs.minAge); setRoofs(r.roofs.rows); setRoofsTotal(r.roofs.total); } else { setRoofs([]); setRoofsTotal(0); }
+    if (r.permits) { setPermitFilter(r.permits.filter); setPermits(r.permits.rows); } else setPermits([]);
+    setTab(r.roofs ? "roofs" : "permits");
+    setError(null); setLoading(false);
+  }
 
   // Debounce so dragging a slider or pin doesn't fire a query per tick.
   useEffect(() => {
+    if (agentView) return;
     let live = true;
     setLoading(true);
     const t = setTimeout(() => {
@@ -47,7 +63,7 @@ export default function App() {
         .finally(() => live && setLoading(false));
     }, 250);
     return () => { live = false; clearTimeout(t); };
-  }, [pin, radius, roofAge, permitFilter]);
+  }, [pin, radius, roofAge, permitFilter, agentView]);
 
   const mapRoofs = useMemo(() => roofs, [roofs]);
 
@@ -66,14 +82,15 @@ export default function App() {
         <main className="mapPage">
           <div className="side">
             <h2>{appConfig.county.name}</h2>
+            {agentView && <div className="agentBanner"><small>Showing the agent's results</small><button className="link" onClick={() => setAgentView(false)}>Reset to live search</button></div>}
             <Controls pin={pin} radius={radius} roofAge={roofAge} permitFilter={permitFilter}
-              onRadius={setRadius} onRoofAge={setRoofAge} onPermitFilter={setPermitFilter} onPin={setPin} />
+              onRadius={manual(setRadius)} onRoofAge={manual(setRoofAge)} onPermitFilter={manual(setPermitFilter)} onPin={manual(setPin)} />
             <LeadList tab={tab} onTab={setTab} roofs={roofs} roofsTotal={roofsTotal} permits={permits} loading={loading} error={error}
               selectedKey={selected} onSelect={setSelected} permitCounts={counts} permitFilter={permitFilter}
               onWiden={() => { setPermitFilter("roofing_low"); setTab("permits"); }} maxRows={MAX_ROWS} />
           </div>
           <div className="mapWrap">
-            <MapView pin={pin} radiusMiles={radius} roofs={mapRoofs} permits={permits} selectedKey={selected} onPin={setPin} onSelect={setSelected} />
+            <MapView pin={pin} radiusMiles={radius} roofs={mapRoofs} permits={permits} selectedKey={selected} onPin={manual(setPin)} onSelect={setSelected} />
             <div className="legend"><span className="dot amber" /> Roof ≥ {roofAge} yrs <span className="dot red" /> Open permit</div>
             {selected && <DetailPanel propertyKey={selected} onClose={() => setSelected(null)} hasLead={has} onAddLead={add} />}
           </div>
@@ -84,7 +101,7 @@ export default function App() {
       )}
       {active === "agent" && (
         <main className="page"><h2>Ask the Agent</h2>
-          <p className="muted">The natural-language agent is a separate step (it will call the Cloudflare Worker stub). The data it will query is the same Parquet used by the map.</p></main>
+          <AgentView map={{ pin, radiusMiles: radius, roofAgeYears: roofAge }} onResults={showAgentResults} onShowMap={() => setActive("map")} /></main>
       )}
     </div>
   );

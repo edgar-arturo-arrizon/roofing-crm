@@ -61,6 +61,25 @@ The UI should present property and permit details, including contractor informat
 - **`mcp/test/smoke.mjs` hardcodes exact row/permit counts** tied to one past pipeline run; it will need
   updating (or a tolerance check) whenever the published dataset changes.
 
+## Kit usage
+
+Same note as the sibling pipeline repo: this app was hand-built rather than through
+`soofi-xyz-team-kit`'s own skills. The ones that looked relevant on inspection:
+
+- **`apply-engineering-guidelines`** -- the team's Golden Path standards (TypeScript, the
+  Vercel AI SDK for LLM calls, AWS as the primary cloud, CDK as the only permitted IaC tool,
+  PagerDuty/Lexicon-backed observability). This app follows the TypeScript-and-structured-tool-
+  calling spirit of that guideline, but runs on Cloudflare Workers/Pages rather than AWS+CDK --
+  a deliberate choice to keep this take-home's infrastructure cost at zero, not an oversight.
+- **`frontend-bug-fix`** / **`responsive-design-tests`** -- both require a Figma design source
+  (`test/design` references) and an existing Playwright/Asana-integrated harness that this repo
+  doesn't have; there's no design file this UI was built against to compare against or test.
+
+Given the gap between what the kit assumes (an AWS-hosted service with Figma-sourced design
+tests and Restate/Lambda-backed data workers) and what this scoped take-home needed (one cheap,
+deployable, demonstrable app on real Nassau County data), I prioritized a working deployed
+product over retrofitting kit tooling built for a different stack and a different kind of task.
+
 ## Reference
 - [Soofi XYZ Team Kit](https://github.com/soofi-xyz/soofi-xyz-team-kit)
 - [Elephant Oracle Skills](https://github.com/elephant-xyz/skills)

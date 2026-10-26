@@ -33,7 +33,7 @@ The pipeline's output is static Parquet published to IPFS. Oracle runs no API, d
 Switching is changing that one value (or `VITE_DATA_SOURCE=ipfs`). All code builds URLs through `tableUrl(table)`.
 
 ## Export script
-`npm run export:parquet -- --db /path/to/nassau.duckdb` (or `DUCKDB_PATH`) runs `scripts/export-parquet.mjs`, which opens the DB read-only with the native `duckdb` Node package and runs `COPY (SELECT * FROM <table>) TO 'public/data/<table>.parquet' (FORMAT PARQUET, COMPRESSION ZSTD)` for each table in the contract. Output uses the same Parquet path the app will use via IPFS.
+`npm run export:parquet -- --db /path/to/nassau.duckdb` (or `DUCKDB_PATH`) runs `scripts/export-parquet.mjs`, which opens the DB read-only with the `@duckdb/node-api` package (prebuilt binaries, no compile step) and runs `COPY (SELECT * FROM <table>) TO 'public/data/<table>.parquet' (FORMAT PARQUET, COMPRESSION ZSTD)` for each table in the contract. Output uses the same Parquet path the app will use via IPFS.
 
 ## Assumed table/column contract (TODO: confirm against the real schema)
 All names below are ASSUMPTIONS.

@@ -1,8 +1,4 @@
 import * as duckdb from "@duckdb/duckdb-wasm";
-import mvpWasm from "@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm?url";
-import mvpWorker from "@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js?url";
-import ehWasm from "@duckdb/duckdb-wasm/dist/duckdb-eh.wasm?url";
-import ehWorker from "@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js?url";
 import { tableUrl, type TableName } from "../config";
 
 let connPromise: Promise<duckdb.AsyncDuckDBConnection> | null = null;
@@ -10,11 +6,11 @@ let connPromise: Promise<duckdb.AsyncDuckDBConnection> | null = null;
 /** One DuckDB-WASM instance; each Parquet file is registered as a view that reads over HTTP range requests. */
 export function getConn(): Promise<duckdb.AsyncDuckDBConnection> {
   connPromise ??= (async () => {
-    const bundle = await duckdb.selectBundle({
-      mvp: { mainModule: mvpWasm, mainWorker: mvpWorker },
-      eh: { mainModule: ehWasm, mainWorker: ehWorker },
-    });
-    const worker = new Worker(bundle.mainWorker!);
+    // Engine files (the eh wasm is ~34 MiB, over Cloudflare Pages' 25 MiB per-file limit) load from jsDelivr, not our dist/.
+    const bundle = await duckdb.selectBundle(duckdb.getJsDelivrBundles());
+    // Browsers refuse cross-origin Workers, so wrap the CDN worker script in a same-origin blob.
+    const workerUrl = URL.createObjectURL(new Blob([`importScripts("${bundle.mainWorker!}");`], { type: "text/javascript" }));
+    const worker = new Worker(workerUrl);
     const db = new duckdb.AsyncDuckDB(new duckdb.ConsoleLogger(duckdb.LogLevel.WARNING), worker);
     await db.instantiate(bundle.mainModule);
     const conn = await db.connect();
